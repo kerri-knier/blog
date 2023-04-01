@@ -1,3 +1,5 @@
+import json
+
 from humps import camelize
 
 
@@ -62,7 +64,7 @@ def lambda_handler(event, ctx) -> dict:
 def get_posts() -> dict:
     response = Response()
 
-    response.body = [
+    posts = [
         "stored first post",
         "stored second post",
         "stored third post",
@@ -74,6 +76,8 @@ def get_posts() -> dict:
         "stored ninth post",
         "stored tenth post",
     ]
+
+    response.body = json.dumps(posts)
 
     return response.to_json_dict()
 
