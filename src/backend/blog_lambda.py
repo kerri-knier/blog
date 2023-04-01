@@ -17,21 +17,33 @@ class Response:
         return camelize(vars(self))
 
 
+def error_response(status: int, error: str, message: str) -> dict:
+    return {
+        "statusCode": status,
+        "headers": {
+            "Content-Type": "text/plain",
+            "x-amzn-ErrorType": error
+        },
+        "isBase64Encoded": False,
+        "body": f"{error}: {message}"
+    }
+
+
 def lambda_handler(event: dict, ctx) -> dict:
     print(event)
     print(ctx)
 
     path: str = event.get("path")
     verb: str = event.get("httpMethod")
+    resource = event.get('resource')
 
     print(verb, path)
 
     if type(path) is not str:
-        resource = event.get('resource')
-        return new_error(404, f"bad path ${path} resource ${resource}")
+        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {event}")
 
     if not path.startswith("/post"):
-        return new_error(404, "not found")
+        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {event}")
 
     if verb == "GET":
         return get_posts()
@@ -40,11 +52,11 @@ def lambda_handler(event: dict, ctx) -> dict:
         body = event.get("body")
 
         if body is None or body == "":
-            return new_error(400, "empty post")
+            return error_response(400, "BadRequest", "cannot create empty post")
 
         return create_post(body)
 
-    return new_error(404, "not found")
+    return error_response(404, "BadRequest", f"bad path {path} resource {resource} event {event}")
 
 
 def get_posts() -> dict:
@@ -72,16 +84,5 @@ def create_post(text) -> dict:
     response = Response()
 
     response.status_code = 201
-
-    return response.to_json_dict()
-
-
-def new_error(status: int, error: str) -> dict:
-    response = Response()
-
-    response.status_code = status
-    response.body = {
-        "error": error
-    }
 
     return response.to_json_dict()
