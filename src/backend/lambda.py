@@ -11,6 +11,7 @@ class Response:
 
 
 def lambda_handler(event, ctx) -> Response:
+    print(event)
     query_params = event['queryParameters']
     print(query_params)
 
