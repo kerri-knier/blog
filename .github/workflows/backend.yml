@@ -1,0 +1,39 @@
+name: deploy
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/backend/**'
+
+jobs:
+  deploy-blog-backend-lambda:
+    name: Deploy Blog Backend Lambda
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@master
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_LAMBDA_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_LAMBDA_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+
+      - name: Build src
+        run: |
+          cd ./src/backend
+          pip install -r requirements.txt -t lib
+          cd lib
+          zip -r9 ../deployment_package.zip .
+          cd ..
+          zip -g deployment_package.zip lambda.py
+
+      - name: Upload src to S3 bucket
+        run: |
+          aws s3 cp ./src/backend/deployment_package.zip s3://kerri-blog/blog-backend-lambda.zip    
