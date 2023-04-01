@@ -1,3 +1,5 @@
+from typing import Optional
+
 class Response:
     statusCode = 200
     headers = {
@@ -10,15 +12,16 @@ class Response:
     body = ""
 
 
-def lambda_handler(event, ctx) -> Response:
+def lambda_handler(event: dict, ctx) -> Response:
     print(event)
-    query_params = event['queryParameters']
+
+    query_params: Optional[dict] = event.get("queryStringParameters")
     print(query_params)
 
     value = ""
     if type(query_params) is dict:
-        print(query_params["key"])
-        value = query_params["key"]
+        value = query_params.get('key')
+        print(value)
 
     response = Response()
 
