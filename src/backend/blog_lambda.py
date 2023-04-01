@@ -26,6 +26,10 @@ def lambda_handler(event: dict, ctx) -> dict:
 
     print(verb, path)
 
+    if type(path) is not str:
+        resource = event.get('resource')
+        return new_error(404, f"bad path ${path} resource ${resource}")
+
     if not path.startswith("/post"):
         return new_error(404, "not found")
 
