@@ -29,7 +29,7 @@ def error_response(status: int, error: str, message: str) -> dict:
     }
 
 
-def lambda_handler(event: dict, ctx) -> dict:
+def lambda_handler(event, ctx) -> dict:
     print(event)
     print(ctx)
 
@@ -40,10 +40,10 @@ def lambda_handler(event: dict, ctx) -> dict:
     print(verb, path)
 
     if type(path) is not str:
-        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {event}")
+        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
 
     if not path.startswith("/post"):
-        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {event}")
+        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
 
     if verb == "GET":
         return get_posts()
@@ -56,7 +56,7 @@ def lambda_handler(event: dict, ctx) -> dict:
 
         return create_post(body)
 
-    return error_response(404, "BadRequest", f"bad path {path} resource {resource} event {event}")
+    return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
 
 
 def get_posts() -> dict:
