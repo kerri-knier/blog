@@ -10,7 +10,7 @@ class Response:
     body = ""
 
 
-def lambda_handler(event, ctx) -> None:
+def lambda_handler(event, ctx) -> Response:
     query_params = event['queryParameters']
     print(query_params)
 
@@ -26,3 +26,5 @@ def lambda_handler(event, ctx) -> None:
         "key2": "value2",
         "qp": value
     }
+
+    return response
