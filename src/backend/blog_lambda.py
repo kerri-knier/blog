@@ -15,7 +15,7 @@ class Response:
         self.body = ""
 
 
-def lambda_handler(event: dict, ctx) -> str:
+def lambda_handler(event: dict, ctx) -> dict:
     print(event)
     print(ctx)
 
@@ -35,4 +35,4 @@ def lambda_handler(event: dict, ctx) -> str:
         "qp": value
     }
 
-    return json.dumps(response,  default=vars)
+    return vars(response)
