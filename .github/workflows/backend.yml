@@ -28,12 +28,11 @@ jobs:
       - name: Build src
         run: |
           cd ./src/backend
-          zip -r9 ./deployment_package.zip blog_lambda.py
-      #          pip install -r requirements.txt -t lib
-      #          cd lib
-      #          zip -r9 ../deployment_package.zip .
-      #          cd ..
-      #          zip -g deployment_package.zip blog_lambda.py
+          pip install -r requirements.txt -t lib
+          cd lib
+          zip -r9 ../deployment_package.zip .
+          cd ..
+          zip -g deployment_package.zip blog_lambda.py
 
       - name: Upload src to S3 bucket
         run: |
