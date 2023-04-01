@@ -36,4 +36,5 @@ jobs:
 
       - name: Upload src to S3 bucket
         run: |
-          aws s3 cp ./src/backend/deployment_package.zip s3://kerri-blog/blog-backend-lambda.zip    
+          aws s3 cp ./src/backend/deployment_package.zip s3://kerri-blog/blog-backend-lambda.zip
+          aws lambda update-function-code --function-name kerri-blog-backend --s3-bucket kerri-blog --s3-key blog-backend-lambda.zip
