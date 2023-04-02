@@ -7,7 +7,10 @@ class Response:
     def __init__(self):
         self.status_code = 200
         self.headers = {
-            "content-type": "application/json"
+            "content-type": "application/json",
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
         }
         self.is_base64_encoded = False
         self.multi_value_headers = {
@@ -24,7 +27,10 @@ def error_response(status: int, error: str, message: str) -> dict:
         "statusCode": status,
         "headers": {
             "Content-Type": "text/plain",
-            "x-amzn-ErrorType": error
+            "x-amzn-ErrorType": error,
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
         },
         "isBase64Encoded": False,
         "body": f"{error}: {message}"
