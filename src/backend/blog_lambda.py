@@ -19,7 +19,7 @@ class Response:
         self.body = ""
 
     def to_json_dict(self) -> dict:
-        return camelize(vars(self))
+        return {camelize(k): v for k, v in vars(self)}
 
 
 def error_response(status: int, error: str, message: str) -> dict:
