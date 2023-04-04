@@ -1,6 +1,69 @@
+import datetime
 import json
+import logging
+import uuid
 
+import boto3
+from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
 from humps import camelize
+
+logger = logging.getLogger(__name__)
+
+
+class DB:
+    def __init__(self):
+        self.resource = boto3.resource("dynamodb")
+        self.table = None
+
+    def exists(self, table_name: str):
+        try:
+            table = self.resource.Table(table_name)
+            table.load()
+            exists = True
+        except ClientError as err:
+            if err.response['Error']['Code'] == 'ResourceNotFoundException':
+                exists = False
+            else:
+                logger.error(
+                    "Couldn't check for existence of %s: %s: %s",
+                    table_name,
+                    err.response['Error']['Code'], err.response['Error']['Message'])
+                raise
+        else:
+            self.table = table
+        return exists
+
+    def write_post(self, text: str):
+        now = datetime.datetime.now()
+        creation = now.strftime("%Y-%m-%dT%H:%M:%S%z")
+        month = now.strftime("%Y-%m")
+        post_id = str(uuid.uuid1())
+        try:
+            self.table.put_item(
+                Item={
+                    'PK': f"POSTMONTH#{month}",
+                    'SK': f"POSTTIME#{creation}",
+                    'id': post_id,
+                    'text': text,
+                }
+            )
+        except ClientError as err:
+            logger.error(
+                "Couldn't add post: %s: %s",
+                err.response['Error']['Code'], err.response['Error']['Message'])
+            raise
+
+    def get_posts(self, month: str):
+        try:
+            response = self.table.query(KeyConditionExpression=Key('PK').eq(f"POSTMONTH#{month}"))
+        except ClientError as err:
+            logger.error(
+                "Couldn't query for posts in %s: %s: %s", month,
+                err.response['Error']['Code'], err.response['Error']['Message'])
+            raise
+        else:
+            return response['Items']
 
 
 class Response:
@@ -70,6 +133,10 @@ def lambda_handler(event, ctx) -> dict:
 def get_posts() -> dict:
     response = Response()
 
+    db = DB()
+    db.exists("blog")
+    print("posts:", db.get_posts(current_month()))
+
     posts = [
         "stored first post",
         "stored second post",
@@ -88,8 +155,16 @@ def get_posts() -> dict:
     return response.to_json_dict()
 
 
+def current_month() -> str:
+    return datetime.date.today().strftime("%Y-%m")
+
+
 def create_post(text) -> dict:
     print("new post:", text)
+
+    db = DB()
+    db.exists("blog")
+    db.write_post(text)
 
     response = Response()
 
