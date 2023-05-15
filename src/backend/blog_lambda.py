@@ -124,11 +124,15 @@ def lambda_handler(event, ctx) -> dict:
 
     if verb == "POST":
         body = event.get("body")
+        text = None
 
-        if body is None or body == "":
+        if body:
+            text = json.loads(body)
+        
+        if not text:
             return error_response(400, "BadRequest", "cannot create empty post")
 
-        return create_post(body)
+        return create_post(text)
 
     return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
 
