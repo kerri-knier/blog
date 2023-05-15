@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import uuid
+from dateutil.relativedelta import relativedelta
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -39,15 +40,17 @@ class DB:
         creation = now.strftime("%Y-%m-%dT%H:%M:%S%z")
         month = now.strftime("%Y-%m")
         post_id = str(uuid.uuid1())
-        try:
-            self.table.put_item(
-                Item={
+        new_post = {
                     'PK': f"POSTMONTH#{month}",
                     'SK': f"POSTTIME#{creation}",
                     'id': post_id,
                     'text': text,
                 }
+        try:
+            self.table.put_item(
+                Item=new_post
             )
+            return new_post
         except ClientError as err:
             logger.error(
                 "Couldn't add post: %s: %s",
@@ -135,28 +138,27 @@ def get_posts() -> dict:
 
     db = DB()
     db.exists("blog")
-    print("posts:", db.get_posts(current_month()))
 
-    posts = [
-        "stored first post",
-        "stored second post",
-        "stored third post",
-        "stored fourth and extra long post about anything and everything because now its making sense",
-        "stored fifth post",
-        "stored sixth post",
-        "stored seventh post",
-        "stored eighth post",
-        "stored ninth post",
-        "stored tenth post",
-    ]
+    posts = []
+    for i in range(12):
+        posts += db.get_posts(format_past_month(i))
+
+        if len(posts) > 10:
+            break
+
+    posts = posts[:10]
+
+    print("posts:", posts)
 
     response.body = json.dumps(posts)
 
     return response.to_json_dict()
 
 
-def current_month() -> str:
-    return datetime.date.today().strftime("%Y-%m")
+def format_past_month(offset: int) -> str:
+    month = datetime.date.today() - relativedelta(months=offset)
+
+    return month.strftime("%Y-%m")
 
 
 def create_post(text) -> dict:
@@ -164,10 +166,11 @@ def create_post(text) -> dict:
 
     db = DB()
     db.exists("blog")
-    db.write_post(text)
+    result = db.write_post(text)
 
     response = Response()
 
     response.status_code = 201
+    response.body = json.dumps(result)
 
     return response.to_json_dict()
