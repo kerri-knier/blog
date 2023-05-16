@@ -145,14 +145,21 @@ def get_posts() -> dict:
 
     posts = []
     for i in range(12):
-        posts += db.get_posts(format_past_month(i))
+        month_posts = db.get_posts(format_past_month(i))
+        month_posts.sort(key=lambda post: post['SK'], reverse=True)
+
+        posts+=month_posts
 
         if len(posts) > 10:
             break
 
     posts = posts[:10]
 
-    print("posts:", posts)
+    print("POSTS")
+    i = 0
+    for post in posts:
+        print(i, post)
+        i+=1
 
     response.body = json.dumps(posts)
 
