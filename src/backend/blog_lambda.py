@@ -79,8 +79,7 @@ class DB:
                 Key={"PK": f"POSTID#{post_id}", "SK": "POST"}
             )
 
-            items = response["Items"]
-            return items[0] if len(items) > 0 else None
+            return response["Item"]
         except ClientError as err:
             logger.error(
                 "Couldn't query for post %s: %s: %s",
