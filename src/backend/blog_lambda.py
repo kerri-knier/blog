@@ -39,11 +39,12 @@ class DB:
         month = now.strftime("%Y-%m")
         post_id = str(uuid.uuid1())
         new_post = {
-                    'PK': f"POSTMONTH#{month}",
-                    'SK': f"POSTTIME#{creation}",
-                    'id': post_id,
-                    'text': text,
-                }
+            "PK": f"POSTID#{post_id}",
+            "SK": "POST",
+            "created": creation,
+            "month": month,
+            "text": text,
+        }
         try:
             self.table.put_item(Item=new_post)
             return new_post
@@ -58,7 +59,8 @@ class DB:
     def get_posts(self, month: str):
         try:
             response = self.table.query(
-                KeyConditionExpression=Key("PK").eq(f"POSTMONTH#{month}")
+                IndexName="month-created-index",
+                KeyConditionExpression=Key("month").eq(month),
             )
 
             return response["Items"]
@@ -73,8 +75,25 @@ class DB:
 
     def get_post(self, post_id: str):
         try:
-            response = self.table.query(
-                IndexName="id-index", KeyConditionExpression=Key("id").eq(post_id)
+            response = self.table.get_item(
+                Key={"PK": f"POSTID#{post_id}", "SK": "POST"}
+            )
+
+            items = response["Items"]
+            return items[0] if len(items) > 0 else None
+        except ClientError as err:
+            logger.error(
+                "Couldn't query for post %s: %s: %s",
+                post_id,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
+            raise
+
+    def delete_post(self, post_id: str):
+        try:
+            response = self.table.delete_item(
+                Key={"PK": f"POSTID#{post_id}", "SK": "POST"}
             )
 
             items = response["Items"]
@@ -149,6 +168,9 @@ def lambda_handler(event: dict, ctx) -> dict:
 
     if verb == "GET":
         return get_posts(post_id)
+    
+    if verb == "DELETE":
+        return delete_post(post_id)
 
     if verb == "POST":
         body = event.get("body")
@@ -208,6 +230,26 @@ def get_posts(post_id: str) -> dict:
     response.body = json.dumps(posts)
 
     return response.to_json_dict()
+
+
+def delete_post(post_id: str) -> dict:
+    response = Response()
+
+    db = DB()
+    db.load("blog")
+
+    if post_id:
+        post = db.get_post(post_id)
+        if post is None:
+            return error_response(
+                404,
+                "NotFound",
+                f"post {post_id} not found",
+            )
+
+        response.body = json.dumps(post)
+
+        return response.to_json_dict()
 
 
 def format_past_month(offset: int) -> str:
