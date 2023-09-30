@@ -17,23 +17,21 @@ class DB:
         self.resource = boto3.resource("dynamodb")
         self.table = None
 
-    def exists(self, table_name: str):
+    def load(self, table_name: str):
         try:
             table = self.resource.Table(table_name)
             table.load()
-            exists = True
-        except ClientError as err:
-            if err.response['Error']['Code'] == 'ResourceNotFoundException':
-                exists = False
-            else:
-                logger.error(
-                    "Couldn't check for existence of %s: %s: %s",
-                    table_name,
-                    err.response['Error']['Code'], err.response['Error']['Message'])
-                raise
-        else:
             self.table = table
-        return exists
+        except ClientError as err:
+            logger.error(
+                "Couldn't load dynamodb table %s: %s: %s",
+                table_name,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
+            raise
+
+        return
 
     def write_post(self, text: str):
         now = datetime.datetime.now()
@@ -47,26 +45,48 @@ class DB:
                     'text': text,
                 }
         try:
-            self.table.put_item(
-                Item=new_post
-            )
+            self.table.put_item(Item=new_post)
             return new_post
         except ClientError as err:
             logger.error(
                 "Couldn't add post: %s: %s",
-                err.response['Error']['Code'], err.response['Error']['Message'])
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
             raise
 
     def get_posts(self, month: str):
         try:
-            response = self.table.query(KeyConditionExpression=Key('PK').eq(f"POSTMONTH#{month}"))
+            response = self.table.query(
+                KeyConditionExpression=Key("PK").eq(f"POSTMONTH#{month}")
+            )
+
+            return response["Items"]
         except ClientError as err:
             logger.error(
-                "Couldn't query for posts in %s: %s: %s", month,
-                err.response['Error']['Code'], err.response['Error']['Message'])
+                "Couldn't query for posts in %s: %s: %s",
+                month,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
             raise
-        else:
-            return response['Items']
+
+    def get_post(self, post_id: str):
+        try:
+            response = self.table.query(
+                IndexName="id-index", KeyConditionExpression=Key("id").eq(post_id)
+            )
+
+            items = response["Items"]
+            return items[0] if len(items) > 0 else None
+        except ClientError as err:
+            logger.error(
+                "Couldn't query for post %s: %s: %s",
+                post_id,
+                err.response["Error"]["Code"],
+                err.response["Error"]["Message"],
+            )
+            raise
 
 
 class Response:
@@ -74,14 +94,12 @@ class Response:
         self.status_code = 200
         self.headers = {
             "content-type": "application/json",
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
         }
         self.is_base64_encoded = False
-        self.multi_value_headers = {
-            "X-Custom-Header": ["My value", "My other value"]
-        }
+        self.multi_value_headers = {"X-Custom-Header": ["My value", "My other value"]}
         self.body = ""
 
     def to_json_dict(self) -> dict:
@@ -94,33 +112,43 @@ def error_response(status: int, error: str, message: str) -> dict:
         "headers": {
             "Content-Type": "text/plain",
             "x-amzn-ErrorType": error,
-            'Access-Control-Allow-Headers': 'Content-Type',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
         },
         "isBase64Encoded": False,
-        "body": f"{error}: {message}"
+        "body": f"{error}: {message}",
     }
 
 
-def lambda_handler(event, ctx) -> dict:
-    print(event)
-    print(ctx)
+def lambda_handler(event: dict, ctx) -> dict:
+    print("EVENT", event)
+    print("CONTEXT", ctx)
 
     path: str = event.get("path")
+    pathParams: dict = event.get("pathParameters", {})
+    post_id: str = pathParams.get("postid", None)
     verb: str = event.get("httpMethod")
-    resource = event.get('resource')
+    resource = event.get("resource")
 
-    print(verb, path)
+    print(verb, path, pathParams)
 
     if type(path) is not str:
-        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
+        return error_response(
+            404,
+            "NotFound",
+            f"bad path {path} resource {resource} event {type(event)} {event}",
+        )
 
     if not path.startswith("/post"):
-        return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
+        return error_response(
+            404,
+            "NotFound",
+            f"bad path {path} resource {resource} event {type(event)} {event}",
+        )
 
     if verb == "GET":
-        return get_posts()
+        return get_posts(post_id)
 
     if verb == "POST":
         body = event.get("body")
@@ -128,38 +156,54 @@ def lambda_handler(event, ctx) -> dict:
 
         if body:
             text = json.loads(body)
-        
+
         if not text:
             return error_response(400, "BadRequest", "cannot create empty post")
 
         return create_post(text)
 
-    return error_response(404, "NotFound", f"bad path {path} resource {resource} event {type(event)} {event}")
+    return error_response(
+        404,
+        "NotFound",
+        f"bad path {path} resource {resource} event {type(event)} {event}",
+    )
 
 
-def get_posts() -> dict:
+def get_posts(post_id: str) -> dict:
     response = Response()
 
     db = DB()
-    db.exists("blog")
+    db.load("blog")
+
+    if post_id:
+        post = db.get_post(post_id)
+        if post is None:
+            return error_response(
+                404,
+                "NotFound",
+                f"post {post_id} not found",
+            )
+
+        response.body = json.dumps(posts)
+
+        return response.to_json_dict()
 
     posts = []
     for i in range(12):
         month_posts = db.get_posts(format_past_month(i))
-        month_posts.sort(key=lambda post: post['SK'], reverse=True)
+        month_posts.sort(key=lambda post: post["SK"], reverse=True)
 
-        posts+=month_posts
+        posts += month_posts
 
         if len(posts) > 10:
+            posts = posts[:10]
             break
-
-    posts = posts[:10]
 
     print("POSTS")
     i = 0
     for post in posts:
         print(i, post)
-        i+=1
+        i += 1
 
     response.body = json.dumps(posts)
 
@@ -176,7 +220,7 @@ def create_post(text) -> dict:
     print("new post:", text)
 
     db = DB()
-    db.exists("blog")
+    db.load("blog")
     result = db.write_post(text)
 
     response = Response()
