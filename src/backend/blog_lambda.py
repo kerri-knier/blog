@@ -184,7 +184,7 @@ def get_posts(post_id: str) -> dict:
                 f"post {post_id} not found",
             )
 
-        response.body = json.dumps(posts)
+        response.body = json.dumps(post)
 
         return response.to_json_dict()
 
