@@ -126,8 +126,8 @@ def lambda_handler(event: dict, ctx) -> dict:
     print("CONTEXT", ctx)
 
     path: str = event.get("path")
-    pathParams: dict = event.get("pathParameters", {})
-    post_id: str = pathParams.get("postid", None)
+    pathParams: dict = event.get("pathParameters")
+    post_id: str = pathParams.get("postid") if pathParams else None
     verb: str = event.get("httpMethod")
     resource = event.get("resource")
 
