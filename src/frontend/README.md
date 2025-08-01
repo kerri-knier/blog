@@ -1,1 +1,0 @@
-The frontend is hosted in a `serverless-blog` branch of my github pages repository to allow for cicd updates to kerri.dev
