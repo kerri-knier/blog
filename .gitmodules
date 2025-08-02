@@ -1,3 +1,4 @@
-[submodule "src/kerri-knier.github.io"]
+[submodule "src/frontend"]
 	path = src/frontend
 	url = https://github.com/kerri-knier/kerri-knier.github.io
+	branch = serverless-blog
