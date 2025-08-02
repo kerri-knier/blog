@@ -1,15 +1,18 @@
 import datetime
 import json
-import logging
 import uuid
-from dateutil.relativedelta import relativedelta
 
 import boto3
+from aws_lambda_powertools import Logger
+from aws_lambda_powertools.event_handler import APIGatewayRestResolver
+from aws_lambda_powertools.utilities.typing import LambdaContext
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
+from dateutil.relativedelta import relativedelta
 from humps import camelize
 
-logger = logging.getLogger(__name__)
+logger = Logger()
+app = APIGatewayRestResolver()
 
 
 class DB:
@@ -139,57 +142,14 @@ def error_response(status: int, error: str, message: str) -> dict:
     }
 
 
-def lambda_handler(event: dict, ctx) -> dict:
+def lambda_handler(event: dict, ctx: LambdaContext) -> dict:
     print("EVENT", event)
     print("CONTEXT", ctx)
 
-    path: str = event.get("path")
-    pathParams: dict = event.get("pathParameters")
-    post_id: str = pathParams.get("postid") if pathParams else None
-    verb: str = event.get("httpMethod")
-    resource = event.get("resource")
-
-    print(verb, path, pathParams)
-
-    if type(path) is not str:
-        return error_response(
-            404,
-            "NotFound",
-            f"bad path {path} resource {resource} event {type(event)} {event}",
-        )
-
-    if not path.startswith("/post"):
-        return error_response(
-            404,
-            "NotFound",
-            f"bad path {path} resource {resource} event {type(event)} {event}",
-        )
-
-    if verb == "GET":
-        return get_posts(post_id)
-    
-    if verb == "DELETE":
-        return delete_post(post_id)
-
-    if verb == "POST":
-        body = event.get("body")
-        text = None
-
-        if body:
-            text = json.loads(body)
-
-        if not text:
-            return error_response(400, "BadRequest", "cannot create empty post")
-
-        return create_post(text)
-
-    return error_response(
-        404,
-        "NotFound",
-        f"bad path {path} resource {resource} event {type(event)} {event}",
-    )
+    return app.resolve(event, ctx)
 
 
+@app.get("/post/<post_id>")
 def get_posts(post_id: str) -> dict:
     response = Response()
 
@@ -231,6 +191,7 @@ def get_posts(post_id: str) -> dict:
     return response.to_json_dict()
 
 
+@app.delete("/post/<post_id>")
 def delete_post(post_id: str) -> dict:
     response = Response()
 
@@ -257,8 +218,13 @@ def format_past_month(offset: int) -> str:
     return month.strftime("%Y-%m")
 
 
-def create_post(text) -> dict:
+@app.post("/post")
+def create_post() -> dict:
+    text = app.current_event.body
     print("new post:", text)
+
+    if not text:
+        return error_response(400, "BadRequest", "cannot create empty post")
 
     db = DB()
     db.load("blog")
