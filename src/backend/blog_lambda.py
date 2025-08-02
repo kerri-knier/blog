@@ -4,12 +4,15 @@ import uuid
 
 import boto3
 from aws_lambda_powertools import Logger
-from aws_lambda_powertools.event_handler import APIGatewayRestResolver
+from aws_lambda_powertools.event_handler import (
+    APIGatewayRestResolver,
+    Response,
+    content_types,
+)
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from dateutil.relativedelta import relativedelta
-from humps import camelize
 
 logger = Logger()
 app = APIGatewayRestResolver()
@@ -110,39 +113,41 @@ class DB:
             raise
 
 
-class Response:
+class AppResponse:
     def __init__(self):
         self.status_code = 200
         self.headers = {
-            "content-type": "application/json",
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
+            "X-Custom-Header": ["My value", "My other value"],
         }
-        self.is_base64_encoded = False
-        self.multi_value_headers = {"X-Custom-Header": ["My value", "My other value"]}
         self.body = ""
 
-    def to_json_dict(self) -> dict:
-        return {camelize(k): v for k, v in vars(self).items()}
+    def to_lambda_response(self) -> Response:
+        Response(
+            status_code=200,
+            content_type=content_types.APPLICATION_JSON,
+            body=self.body,
+            headers=self.headers,
+        )
 
 
-def error_response(status: int, error: str, message: str) -> dict:
-    return {
-        "statusCode": status,
-        "headers": {
-            "Content-Type": "text/plain",
+def error_response(status: int, error: str, message: str) -> Response:
+    return Response(
+        status_code=status,
+        content_type=content_types.TEXT_PLAIN,
+        body=f"{error}: {message}",
+        headers={
             "x-amzn-ErrorType": error,
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
         },
-        "isBase64Encoded": False,
-        "body": f"{error}: {message}",
-    }
+    )
 
 
-def lambda_handler(event: dict, ctx: LambdaContext) -> dict:
+def lambda_handler(event: dict, ctx: LambdaContext) -> Response:
     print("EVENT", event)
     print("CONTEXT", ctx)
 
@@ -150,8 +155,8 @@ def lambda_handler(event: dict, ctx: LambdaContext) -> dict:
 
 
 @app.get("/post/<post_id>")
-def get_post(post_id: str) -> dict:
-    response = Response()
+def get_post(post_id: str) -> Response:
+    response = AppResponse()
 
     db = DB()
     db.load("blog")
@@ -169,12 +174,12 @@ def get_post(post_id: str) -> dict:
 
     response.body = json.dumps(post)
 
-    return response.to_json_dict()
+    return response.to_lambda_response()
 
 
 @app.get("/post")
-def get_posts() -> dict:
-    response = Response()
+def get_posts() -> Response:
+    response = AppResponse()
 
     db = DB()
     db.load("blog")
@@ -198,12 +203,12 @@ def get_posts() -> dict:
 
     response.body = json.dumps(posts)
 
-    return response.to_json_dict()
+    return response.to_lambda_response()
 
 
 @app.delete("/post/<post_id>")
-def delete_post(post_id: str) -> dict:
-    response = Response()
+def delete_post(post_id: str) -> Response:
+    response = AppResponse()
 
     db = DB()
     db.load("blog")
@@ -219,7 +224,7 @@ def delete_post(post_id: str) -> dict:
 
         response.body = json.dumps(post)
 
-        return response.to_json_dict()
+        return response.to_lambda_response()
 
 
 def format_past_month(offset: int) -> str:
@@ -229,7 +234,7 @@ def format_past_month(offset: int) -> str:
 
 
 @app.post("/post")
-def create_post() -> dict:
+def create_post() -> Response:
     text = app.current_event.body
     print("new post:", text)
 
@@ -240,9 +245,9 @@ def create_post() -> dict:
     db.load("blog")
     result = db.write_post(text)
 
-    response = Response()
+    response = AppResponse()
 
     response.status_code = 201
     response.body = json.dumps(result)
 
-    return response.to_json_dict()
+    return response.to_lambda_response()
