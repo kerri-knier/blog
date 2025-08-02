@@ -6,6 +6,7 @@ import boto3
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.event_handler import (
     APIGatewayRestResolver,
+    CORSConfig,
     Response,
     content_types,
 )
@@ -15,7 +16,8 @@ from botocore.exceptions import ClientError
 from dateutil.relativedelta import relativedelta
 
 logger = Logger()
-app = APIGatewayRestResolver()
+cors_config = CORSConfig(allow_origin="*", max_age=300)
+app = APIGatewayRestResolver(cors=cors_config)
 
 
 class DB:
@@ -113,37 +115,11 @@ class DB:
             raise
 
 
-class AppResponse:
-    def __init__(self):
-        self.status_code = 200
-        self.headers = {
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
-            "X-Custom-Header": ["My value", "My other value"],
-        }
-        self.body = ""
-
-    def to_lambda_response(self) -> Response:
-        Response(
-            status_code=200,
-            content_type=content_types.APPLICATION_JSON,
-            body=self.body,
-            headers=self.headers,
-        )
-
-
 def error_response(status: int, error: str, message: str) -> Response:
     return Response(
         status_code=status,
         content_type=content_types.TEXT_PLAIN,
         body=f"{error}: {message}",
-        headers={
-            "x-amzn-ErrorType": error,
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS,POST,GET",
-        },
     )
 
 
@@ -155,9 +131,7 @@ def lambda_handler(event: dict, ctx: LambdaContext) -> Response:
 
 
 @app.get("/post/<post_id>")
-def get_post(post_id: str) -> Response:
-    response = AppResponse()
-
+def get_post(post_id: str) -> str:
     db = DB()
     db.load("blog")
 
@@ -172,15 +146,11 @@ def get_post(post_id: str) -> Response:
             f"post {post_id} not found",
         )
 
-    response.body = json.dumps(post)
-
-    return response.to_lambda_response()
+    return json.dumps(post)
 
 
 @app.get("/post")
-def get_posts() -> Response:
-    response = AppResponse()
-
+def get_posts() -> str:
     db = DB()
     db.load("blog")
 
@@ -201,15 +171,11 @@ def get_posts() -> Response:
         print(i, post)
         i += 1
 
-    response.body = json.dumps(posts)
-
-    return response.to_lambda_response()
+    return json.dumps(posts)
 
 
 @app.delete("/post/<post_id>")
-def delete_post(post_id: str) -> Response:
-    response = AppResponse()
-
+def delete_post(post_id: str) -> str:
     db = DB()
     db.load("blog")
 
@@ -222,9 +188,7 @@ def delete_post(post_id: str) -> Response:
                 f"post {post_id} not found",
             )
 
-        response.body = json.dumps(post)
-
-        return response.to_lambda_response()
+        return json.dumps(post)
 
 
 def format_past_month(offset: int) -> str:
@@ -245,9 +209,4 @@ def create_post() -> Response:
     db.load("blog")
     result = db.write_post(text)
 
-    response = AppResponse()
-
-    response.status_code = 201
-    response.body = json.dumps(result)
-
-    return response.to_lambda_response()
+    return Response(status_code=201, body=json.dumps(result))
