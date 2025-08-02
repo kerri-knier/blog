@@ -150,24 +150,34 @@ def lambda_handler(event: dict, ctx: LambdaContext) -> dict:
 
 
 @app.get("/post/<post_id>")
-def get_posts(post_id: str) -> dict:
+def get_post(post_id: str) -> dict:
     response = Response()
 
     db = DB()
     db.load("blog")
 
-    if post_id:
-        post = db.get_post(post_id)
-        if post is None:
-            return error_response(
-                404,
-                "NotFound",
-                f"post {post_id} not found",
-            )
+    if not post_id:
+        return error_response(400, "BadRequest", "cannot get empty post id")
 
-        response.body = json.dumps(post)
+    post = db.get_post(post_id)
+    if post is None:
+        return error_response(
+            404,
+            "NotFound",
+            f"post {post_id} not found",
+        )
 
-        return response.to_json_dict()
+    response.body = json.dumps(post)
+
+    return response.to_json_dict()
+
+
+@app.get("/post")
+def get_posts() -> dict:
+    response = Response()
+
+    db = DB()
+    db.load("blog")
 
     posts = []
     for i in range(12):
